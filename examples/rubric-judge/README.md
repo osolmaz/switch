@@ -102,7 +102,7 @@ examples/rubric-judge/src/main.ts compare results results-legal --set sets/quick
 The judge asks two bool questions about each rubric item: whether the answer meets the item, with probability $a$,
 and whether it misses or contradicts any requirement, with probability $b$.
 [Meets and misses](../../docs/2026-10-26-meets-and-misses.md) explains why it asks two. The item passes when it meets
-the item and misses nothing, and `combine` in [`src/judge.ts`](src/judge.ts) gives that the probability
+the item and misses nothing, and `combine` in [`src/judge.ts`](src/judge.ts) gives the probability
 
 $$P(\text{pass}) = \min(a,\; 1 - b)$$
 
