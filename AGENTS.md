@@ -95,7 +95,7 @@
   domain that needs input from the command line, such as rubric-judge's judge file, declares its own `flags` in its
   `DomainSetup`, and `setup` gets their values. switch's commands have no flag of any one domain. The example's
   `src/main.ts` passes the domain to `commandLine`, and adds the viewer's `viewCommand`.
-- Each example lists its own words in `domain-words.txt`, one a line. `tests/no-domain.test.ts` reads every example's
+- Each example lists its own words in `domain-words.txt`, one per line. `tests/no-domain.test.ts` reads every example's
   list and fails when `src/` or `viewer/src` uses one of the words, or when an example has no list. A new example
   brings its list.
 
