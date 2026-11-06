@@ -69,7 +69,7 @@ own, such as `TYPESAFE_API_KEY`.
 the end, the totals: the cases, the failed ones, the requests and their summed usage, cost included. Each case has its
 `result.json` (its steps, why the run ended, why it failed, the domain's outcome, and the error that stopped the case),
 its `trace.jsonl`, and its `requests.jsonl`, with every decision request and its result. When a stopped run goes on, it
-runs again each case that has no result, or whose case was stopped by an error.
+runs again each case that has no result, or which was stopped by an error.
 
 ## Replay
 
