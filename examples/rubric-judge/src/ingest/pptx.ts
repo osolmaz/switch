@@ -1,10 +1,10 @@
-import type { Unit } from "../case.ts";
+import type { UnitText } from "../case.ts";
 import { A, elements, Package, textOf } from "./ooxml.ts";
 
 const SLIDE = /^ppt\/slides\/slide(\d+)\.xml$/;
 
 /** Each slide's text, one paragraph a line, in slide order. */
-export function readPptx(bytes: Uint8Array): Unit[] {
+export function readPptx(bytes: Uint8Array): UnitText[] {
 	const pkg = new Package(bytes);
 	return pkg
 		.names()

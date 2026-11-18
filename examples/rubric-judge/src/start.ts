@@ -1,7 +1,7 @@
 import { typedKey } from "@osolmaz/switch";
 import type { CaseFile, JudgeCase } from "./case.ts";
 import { lookedAt } from "./choices/look.ts";
-import { type Evidence, SIZES, type JudgeState, partKey, partSource, partText, TYPES, unreadParts } from "./state.ts";
+import { type Evidence, SIZES, type JudgeState, partEvidence, partKey, TYPES, unreadParts } from "./state.ts";
 
 /** The answer's parts read at the start, as the read choices would read them, so that those are left out. */
 function readAnswerFile(file: CaseFile, room: number): { evidence: Evidence[]; tokens: number } {
@@ -9,11 +9,17 @@ function readAnswerFile(file: CaseFile, room: number): { evidence: Evidence[]; t
 	let tokens = 0;
 	for (const part of unreadParts(file, new Set())) {
 		if (tokens + part.tokens > room) break;
-		evidence.push({ key: typedKey(TYPES.read, partKey(part)), source: partSource(part), text: partText(part) });
+		evidence.push(partEvidence(part, typedKey(TYPES.read, partKey(part))));
 		tokens += part.tokens;
 	}
 	return { evidence, tokens };
 }
+
+/** The images of an answer's image file, as far as the run may still see images. */
+const answerImages = (file: CaseFile, seen: number): Evidence[] =>
+	file.pages
+		.flatMap((page) => (page.image === null ? [] : [lookedAt(file, page.number, page.image)]))
+		.slice(0, Math.max(0, SIZES.images - seen));
 
 const unreadable = (file: CaseFile): Evidence => ({
 	key: `unreadable:${file.id}`,
@@ -38,9 +44,7 @@ export function openAnswer(judgeCase: JudgeCase): JudgeState {
 		if (file.error !== null) {
 			evidence.push(unreadable(file));
 		} else if (file.format === "image") {
-			const seen = evidence.filter((entry) => entry.image !== undefined).length;
-			const renders = file.renders.slice(0, Math.max(0, SIZES.images - seen));
-			evidence.push(...renders.map((render, index) => lookedAt(file, render, index)));
+			evidence.push(...answerImages(file, evidence.filter((entry) => entry.image !== undefined).length));
 		} else {
 			const opened = readAnswerFile(file, room);
 			evidence.push(...opened.evidence);

@@ -8,7 +8,7 @@ import { read } from "../src/choices/read.ts";
 import { search, searchFiles } from "../src/choices/search.ts";
 import { SIZES } from "../src/state.ts";
 import { searchTerms } from "../src/terms.ts";
-import { evidence, file, judgeCase, stateOf } from "./helpers/cases.ts";
+import { evidence, file, imageFile, judgeCase, pageImage, paged, stateOf } from "./helpers/cases.ts";
 
 const texts = (choices: readonly Choice[]) => choices.map((choice) => choice.text);
 const empty = stateOf();
@@ -25,6 +25,10 @@ describe("read", () => {
 					key: "read:d1:0-1",
 					source: "documents/lease.pdf",
 					text: "[page 1]\nSection 4.2 sets a notice period of 30 days.\n\n[page 2]\nRent is USD 2,500 a month.",
+					pages: [
+						{ file: "d1", page: 1 },
+						{ file: "d1", page: 2 },
+					],
 				},
 			],
 		});
@@ -61,31 +65,30 @@ describe("read", () => {
 });
 
 describe("look", () => {
-	const page = { label: "page 1 image", path: "images/d1-1.png", mimeType: "image/png" };
-	const scanned = judgeCase({
-		files: [
-			file("d1", "documents/scan.pdf", "document", [""], { format: "pdf", renders: [page] }),
-			file("d2", "documents/photo.png", "document", [], {
-				format: "image",
-				renders: [{ label: "image", path: "images/d2-1.png", mimeType: "image/png" }],
-			}),
-		],
-	});
+	const scan = paged(file("d1", "documents/scan.pdf", "document", ["", "Readable text"], { format: "pdf" }));
+	const scanned = judgeCase({ files: [scan, imageFile("d2", "documents/photo.png", "document")] });
+	const memo = paged(file("a1", "output/memo.docx", "answer", ["Memo page one", "Memo page two"], { format: "docx" }));
+	const lease = paged(
+		file("d1", "documents/lease.pdf", "document", ["Lease 1", "Lease 2", "Lease 3"], { format: "pdf" }),
+	);
+	const laidOut = judgeCase({ files: [memo, lease] });
+	const readPage = (file: string, page: number, key = `read:${file}:${String(page)}`) =>
+		evidence(key, "x", { pages: [{ file, page }] });
 
-	it("offers page images and image files, and adds the image to the evidence by its file", async () => {
+	it("offers pages without text and image files, and adds the image to the evidence by its label", async () => {
 		const choices = look(scanned)(empty);
 		expect(texts(choices)).toEqual([
-			"Look at documents/scan.pdf page 1 image (the page has no text layer)",
+			"Look at documents/scan.pdf page 1 (the page has no text layer)",
 			"Look at documents/photo.png",
 		]);
 		await expect(choices[0]?.next(empty)).resolves.toEqual({
 			...empty,
 			evidence: [
 				{
-					key: "look:d1:0",
-					source: "documents/scan.pdf page 1 image",
-					text: "[image: documents/scan.pdf page 1 image]",
-					image: page,
+					key: "look:d1:1",
+					source: "documents/scan.pdf page 1",
+					text: "[image: documents/scan.pdf page 1]",
+					image: pageImage(scan, 1),
 				},
 			],
 		});
@@ -93,12 +96,47 @@ describe("look", () => {
 		expect(photo?.evidence[0]).toMatchObject({ source: "documents/photo.png", text: "[image: documents/photo.png]" });
 	});
 
+	it("offers the pages whose text the evidence holds, the answer's ahead of the documents' latest first", () => {
+		const state = stateOf(readPage("a1", 1), readPage("d1", 2), readPage("d1", 3, "search:lease"));
+		const choices = look(laidOut)(state);
+		expect(choices.map((choice) => [choice.key, choice.priority])).toEqual([
+			["look:a1:1", 1],
+			["look:d1:3", 1],
+			["look:d1:2", 1],
+		]);
+		expect(texts(choices)).toEqual([
+			"Look at output/memo.docx page 1 as an image (its text is in the evidence, as LibreOffice lays the file out)",
+			"Look at documents/lease.pdf page 3 as an image (its text is in the evidence)",
+			"Look at documents/lease.pdf page 2 as an image (its text is in the evidence)",
+		]);
+	});
+
+	it("offers each page once, at most its share of choices, and none without an image or of an unknown file", () => {
+		const many = paged(
+			file(
+				"d1",
+				"documents/long.pdf",
+				"document",
+				Array.from({ length: 10 }, (_, index) => `Page ${String(index)}`),
+				{
+					format: "pdf",
+				},
+			),
+		);
+		const pages = Array.from({ length: 10 }, (_, index) => ({ file: "d1", page: index + 1 }));
+		const state = stateOf(evidence("read:d1:0-9", "x", { pages: [...pages, ...pages, { file: "x9", page: 1 }] }));
+		expect(look(judgeCase({ files: [many] }))(state)).toHaveLength(SIZES.pageChoices);
+		const blank = { ...many, pages: many.pages.map((page) => ({ ...page, image: null })) };
+		expect(look(judgeCase({ files: [blank] }))(state)).toEqual([]);
+	});
+
 	it("leaves out an image it looked at, and stops once the case has seen its images", () => {
-		expect(texts(look(scanned)(stateOf(evidence("look:d1:0", "x", { image: page }))))).toEqual([
+		const image = pageImage(scan, 1);
+		expect(texts(look(scanned)(stateOf(evidence("look:d1:1", "x", { image }))))).toEqual([
 			"Look at documents/photo.png",
 		]);
 		const seen = Array.from({ length: SIZES.images }, (_, index) =>
-			evidence(`look:x:${String(index)}`, "x", { image: page }),
+			evidence(`look:x:${String(index)}`, "x", { image }),
 		);
 		expect(look(scanned)(stateOf(...seen))).toEqual([]);
 	});
@@ -123,10 +161,14 @@ describe("search", () => {
 		expect(again.map((choice) => choice.key)).not.toContain("search:notice period");
 	});
 
-	it("labels a passage with its part, and says when nothing matches", () => {
+	it("labels a passage with its part, keeps the pages that hold it, and says when nothing matches", async () => {
 		const found = searchFiles(judgeCase().files, "rent");
-		expect(found).toContain("documents/lease.pdf, page 2: …Rent is USD 2,500 a month.…");
-		expect(searchFiles(judgeCase().files, "arbitration")).toBe("Not found in any file.");
+		expect(found.text).toContain("documents/lease.pdf, page 2: …Rent is USD 2,500 a month.…");
+		expect(found.pages).toEqual([{ file: "d1", page: 2 }]);
+		expect(searchFiles(judgeCase().files, "arbitration")).toEqual({ text: "Not found in any file.", pages: [] });
+		const graded = judgeCase();
+		const notice = search(graded, searchTerms(graded))(empty).find((choice) => choice.key === "search:notice period");
+		expect((await notice?.next(empty))?.evidence[0]?.pages).toEqual([{ file: "d1", page: 1 }]);
 	});
 });
 

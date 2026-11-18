@@ -1,5 +1,5 @@
 import { type Image, type JsonObject, typedKey } from "@osolmaz/switch";
-import type { CaseFile, JudgeCase, Render } from "./case.ts";
+import type { CaseFile, JudgeCase, Render, Unit } from "./case.ts";
 
 /**
  * The types of choice. A choice's key is its type's name and its key within the type, as `typedKey` makes it, and the
@@ -23,7 +23,10 @@ export const SIZES = {
 	evidenceTokens: 40_000,
 	/** The largest part of a file that one step reads. */
 	chunkTokens: 6_000,
+	/** The images that one run may look at, in all. */
 	images: 6,
+	/** The look choices offered in one state. */
+	pageChoices: 6,
 	searchChoices: 10,
 	partChoices: 4,
 	hits: 8,
@@ -36,14 +39,42 @@ export interface CaseFolder {
 	image(render: Render): Promise<Image>;
 }
 
-/** One thing the run found: the key of the choice that found it, where it came from, its text, and its image. */
+/** One page of one of the case's files, by the file's id and the page's number. */
+export interface PageOf extends JsonObject {
+	readonly file: string;
+	readonly page: number;
+}
+
+/**
+ * One thing the run found: the key of the choice that found it, where it came from, its text, the pages its text comes
+ * from, and its image.
+ */
 export interface Evidence extends JsonObject {
 	readonly key: string;
 	readonly source: string;
 	readonly text: string;
+	/** The pages that hold the text, in the order the text has them; the model may look at them as images. */
+	readonly pages?: readonly PageOf[];
 	/** The image the choice looked at, by its file next to the case; the view loads it. */
 	readonly image?: Render;
 }
+
+/** The pages of `units` of `file`, each once, in page order. */
+export function pagesOfUnits(file: CaseFile, units: readonly Unit[]): PageOf[] {
+	const numbers = [...new Set(units.flatMap((unit) => unit.pages))].sort((a, b) => a - b);
+	return numbers.map((page) => ({ file: file.id, page }));
+}
+
+/** The evidence's `pages` field: left out when no page holds the text, as for a file without pages. */
+export const pagesField = (pages: readonly PageOf[]): Pick<Evidence, "pages"> => (pages.length === 0 ? {} : { pages });
+
+/** A part's evidence: its text and the pages that hold it. */
+export const partEvidence = (part: Part, key: string): Evidence => ({
+	key,
+	source: partSource(part),
+	text: partText(part),
+	...pagesField(pagesOfUnits(part.file, part.file.units.slice(part.from, part.to + 1))),
+});
 
 /**
  * Where a case is: the evidence found so far, in order, the gathering steps taken, whether gathering is over, and the

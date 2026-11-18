@@ -1,8 +1,8 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { z } from "zod";
-import { type CaseFile, caseSchema, type JudgeCase } from "../case.ts";
-import { type Extracted, extractFile } from "./extract.ts";
+import { CASE_SCHEMA, type CaseFile, caseSchema, type JudgeCase, type Page } from "../case.ts";
+import { errorText, type Extracted, type ExtractedPage, extractFile, MAX_IMAGE_SIDE } from "./extract.ts";
 import { systemTools, type Tools } from "./tools.ts";
 import { countWords } from "./units.ts";
 
@@ -19,8 +19,6 @@ export interface IngestOptions {
 const EXTENSIONS: Readonly<Record<string, string>> = {
 	"image/png": "png",
 	"image/jpeg": "jpg",
-	"image/gif": "gif",
-	"image/webp": "webp",
 };
 
 async function listFiles(root: string): Promise<string[]> {
@@ -42,8 +40,8 @@ async function safeExtract(
 	try {
 		return { ...(await extractFile(path, bytes, tools)), error: null };
 	} catch (error: unknown) {
-		const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-		return { format: "other", units: [], pictures: [], formatting: null, marks: 0, error: message.slice(0, 300) };
+		const read = { units: [], pages: [], formatting: null, marks: 0, warnings: [] };
+		return { format: "other", ...read, error: errorText(error) };
 	}
 }
 
@@ -75,16 +73,24 @@ async function sources(input: string): Promise<Source[]> {
 	return found;
 }
 
+/**
+ * Stores a page's image next to the case as `images/<file id>-<page>.<extension>`. Its label names the file, and the
+ * page unless the file is an image itself, so that the model and the records know what each image shows.
+ */
+async function storePage(source: Source, isImage: boolean, page: ExtractedPage, output: string): Promise<Page> {
+	if (page.image === null) return { number: page.number, image: null, hasText: page.hasText };
+	const path = `images/${source.id}-${String(page.number)}.${EXTENSIONS[page.image.mimeType] ?? "png"}`;
+	await writeFile(join(output, path), page.image.bytes);
+	const label = isImage ? source.path : `${source.path} page ${String(page.number)}`;
+	return { number: page.number, image: { label, path, mimeType: page.image.mimeType }, hasText: page.hasText };
+}
+
 async function caseFile(source: Source, output: string, tools: Tools): Promise<CaseFile> {
 	const bytes = new Uint8Array(await readFile(source.file));
 	const extracted = await safeExtract(source.path, bytes, tools);
-	const renders = [];
-	for (const [index, picture] of extracted.pictures.entries()) {
-		const name = `images/${source.id}-${String(index + 1)}.${EXTENSIONS[picture.mimeType] ?? "png"}`;
-		await writeFile(join(output, name), picture.bytes);
-		renders.push({ label: picture.label, path: name, mimeType: picture.mimeType });
-	}
-	const { format, units, formatting, marks, error } = extracted;
+	const pages: Page[] = [];
+	for (const page of extracted.pages) pages.push(await storePage(source, extracted.format === "image", page, output));
+	const { format, units, formatting, marks, error, warnings } = extracted;
 	return {
 		id: source.id,
 		path: source.path,
@@ -92,10 +98,11 @@ async function caseFile(source: Source, output: string, tools: Tools): Promise<C
 		format,
 		units,
 		words: countWords(units),
-		renders,
+		pages,
 		formatting,
 		marks,
 		error,
+		warnings,
 	};
 }
 
@@ -111,7 +118,8 @@ export async function ingestCase(input: string, output: string, options: IngestO
 	const files: CaseFile[] = [];
 	for (const source of await sources(input)) files.push(await caseFile(source, output, tools));
 	const items = rubric.items.map((item) => ({ id: item.id, category: item.category ?? null, text: item.text }));
-	const judgeCase = caseSchema.parse({ schema: 1, id: options.id, request, items, files });
+	const rendering = { pageSide: MAX_IMAGE_SIDE, programs: await tools.versions() };
+	const judgeCase = caseSchema.parse({ schema: CASE_SCHEMA, id: options.id, request, items, files, rendering });
 	await writeFile(join(output, "case.json"), `${JSON.stringify(judgeCase, null, 1)}\n`);
 	return judgeCase;
 }

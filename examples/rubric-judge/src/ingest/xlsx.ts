@@ -1,5 +1,5 @@
 import type { Element } from "@xmldom/xmldom";
-import type { Unit } from "../case.ts";
+import type { UnitText } from "../case.ts";
 import { children, elements, Package, R, REL, S, textOf } from "./ooxml.ts";
 import { textUnits } from "./units.ts";
 
@@ -64,7 +64,7 @@ function sheetParts(pkg: Package): { name: string; part: string }[] {
 }
 
 /** Each sheet's non-empty rows, with cell values placed in their columns. */
-export function readXlsx(bytes: Uint8Array): Unit[] {
+export function readXlsx(bytes: Uint8Array): UnitText[] {
 	const pkg = new Package(bytes);
 	const shared = sharedStrings(pkg);
 	return sheetParts(pkg).flatMap(({ name, part }) =>

@@ -3,13 +3,21 @@ import { describe, expect, it } from "vitest";
 import { PICK_ID, replayOf, run } from "@osolmaz/switch";
 import { answering, fakeDecider } from "@osolmaz/switch/testing";
 import { itemQuestions } from "../src/definition.ts";
-import { DEFAULT_JUDGE, judgeMachine, judgeOf, judgeOutcome, loadJudge, rubricJudge } from "../src/index.ts";
+import {
+	CODE_VERSION,
+	DEFAULT_JUDGE,
+	judgeMachine,
+	judgeOf,
+	judgeOutcome,
+	loadJudge,
+	rubricJudge,
+} from "../src/index.ts";
 import { combine, verdictsFrom } from "../src/judge.ts";
 import { openAnswer } from "../src/start.ts";
 import { SIZES } from "../src/state.ts";
 import { searchTerms, termsIn } from "../src/terms.ts";
 import { fitEvidence, view } from "../src/view.ts";
-import { evidence, file, folderOf, judgeCase, stateOf } from "./helpers/cases.ts";
+import { evidence, file, folderOf, imageFile, judgeCase, paged, stateOf } from "./helpers/cases.ts";
 
 const judge = await loadJudge(DEFAULT_JUDGE);
 const texts = judge.definition.texts;
@@ -57,15 +65,12 @@ describe("openAnswer", () => {
 					format: "docx",
 					formatting: "Tracked insertions: 0; tracked deletions: 0.",
 				}),
-				file("a2", "output/chart.png", "answer", [], {
-					format: "image",
-					renders: [{ label: "image", path: "images/a2-1.png", mimeType: "image/png" }],
-				}),
+				imageFile("a2", "output/chart.png", "answer"),
 				file("a3", "output/broken.pdf", "answer", [], { error: "PDF error" }),
 			],
 		});
 		const { evidence: found } = openAnswer(answer);
-		expect(found.map((entry) => entry.key)).toEqual(["read:a1:0-0", "changes:a1", "look:a2:0", "unreadable:a3"]);
+		expect(found.map((entry) => entry.key)).toEqual(["read:a1:0-0", "changes:a1", "look:a2:1", "unreadable:a3"]);
 		expect(found[2]).toMatchObject({ source: "output/chart.png", image: { path: "images/a2-1.png" } });
 		expect(found[3]?.text).toBe("[the file could not be read: PDF error]");
 	});
@@ -74,12 +79,17 @@ describe("openAnswer", () => {
 		const page = "word ".repeat(10_000);
 		const long = judgeCase({ files: [file("a1", "output/long.md", "answer", [page, page, page, page])] });
 		expect(openAnswer(long).evidence.length).toBeLessThan(4);
-		const render = { label: "image", path: "images/a1.png", mimeType: "image/png" };
-		const many = Array.from({ length: SIZES.images + 2 }, () => render);
 		const images = judgeCase({
-			files: [file("a1", "output/a.png", "answer", [], { format: "image", renders: many })],
+			files: Array.from({ length: SIZES.images + 2 }, (_, index) =>
+				imageFile(`a${String(index + 1)}`, `output/${String(index + 1)}.png`, "answer"),
+			),
 		});
 		expect(openAnswer(images).evidence).toHaveLength(SIZES.images);
+		const memo = paged(file("a1", "output/memo.pdf", "answer", ["Page one", "Page two"], { format: "pdf" }));
+		expect(openAnswer(judgeCase({ files: [memo] })).evidence[0]?.pages).toEqual([
+			{ file: "a1", page: 1 },
+			{ file: "a1", page: 2 },
+		]);
 	});
 });
 
@@ -148,7 +158,10 @@ describe("rubricJudge", () => {
 			["S-1/misses", expect.stringMatching(/^Rubric item S-1:\nPASS if x\.\n\nCheck each requirement/) as unknown],
 		]);
 		const domain = rubricJudge(judge);
-		expect(domain).toMatchObject({ version: "0.6.0", limits: { windowShare: judge.definition.limits.windowShare } });
+		expect(domain).toMatchObject({
+			version: CODE_VERSION,
+			limits: { windowShare: judge.definition.limits.windowShare },
+		});
 		const decider = fakeDecider(gathersThenStops(1));
 		const result = await run(domain, judgeMachine(judge.definition, folderOf(judgeCase())), decider);
 		// Two gathering steps, a read and stop, then the checks.

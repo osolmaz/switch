@@ -1,10 +1,10 @@
 import type { Element } from "@xmldom/xmldom";
-import type { Unit } from "../case.ts";
+import type { UnitText } from "../case.ts";
 import { children, elements, Package, squash, textOf, W } from "./ooxml.ts";
 import { textUnits } from "./units.ts";
 
 export interface WordFile {
-	readonly units: Unit[];
+	readonly units: UnitText[];
 	/** Tracked changes, comments and runs with direct formatting, as text for the judge. */
 	readonly formatting: string;
 	/** The number of tracked changes and comments. */

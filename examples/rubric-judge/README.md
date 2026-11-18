@@ -28,17 +28,39 @@ adds the [viewer](../../viewer/README.md)'s `view` and three commands of its own
 says. `ingest` also calls three programs, which must be on the `PATH`. It calls each one only for the files that need
 it:
 
-- Poppler's `pdftoppm` renders PDF pages that have no text layer, such as scans, as images.
-- LibreOffice's `soffice` reads old Word `.doc` files.
+- Poppler's `pdftoppm` renders every page of a PDF as an image.
+- LibreOffice's `soffice` lays Word (`.docx`, `.doc`) and PowerPoint (`.pptx`) files out as pages, and reads the text of
+  old `.doc` files.
 - Netpbm decodes and scales images with `pngtopnm`, `jpegtopnm`, `giftopnm`, `pamscale` and `pnmtopng`.
 
 On Debian or Ubuntu:
 
 ```bash
-sudo apt install poppler-utils libreoffice-writer netpbm
+sudo apt install poppler-utils libreoffice-writer libreoffice-impress netpbm
 ```
 
 `run` and the other commands read case folders that `ingest` already made, so they need none of these programs.
+
+## Files and pages
+
+`ingest` reads each file's text with a reader of its own format, and lays the file out as pages when it has pages:
+
+| Format              | Text                                                                           | Pages                        |
+| ------------------- | ------------------------------------------------------------------------------ | ---------------------------- |
+| PDF                 | each page's text layer                                                         | the PDF's own                |
+| Word `.docx`        | numbered paragraphs with styles, tables, tracked changes, comments, formatting | as LibreOffice lays them out |
+| Word `.doc`         | LibreOffice's plain text                                                       | as LibreOffice lays them out |
+| PowerPoint `.pptx`  | each slide's text                                                              | as LibreOffice lays them out |
+| Excel, email, text  | rows, headers and body, lines                                                  | none                         |
+| PNG, JPEG, GIF, PPM | none                                                                           | the image itself             |
+
+Every page gets an image, with no side longer than 1,568 pixels, up to 300 pages a file; the case lists the pages past
+the limit, and any it could not render, in the file's `warnings`. Each part of a file's text records the pages that
+hold it: a PDF's part is its page, and an office file's parts are matched to the laid-out pages by the runs of words
+they share. The case records the versions of `pdftoppm` and `soffice`, since a page's layout depends on them. A page
+that LibreOffice lays out may break at another place than in the program that made the file.
+
+A case folder of an older schema is refused; ingest its input folder again.
 
 ## The state machine
 
@@ -46,14 +68,19 @@ Each case is a state machine, in `src/index.ts`:
 
 - The state is the evidence found so far, in order, the number of gathering steps, whether the model stopped
   gathering, and, after the checks, each check's probability of yes. Each piece of evidence has the key of the choice
-  that found it, its source, its text, and, for a look at an image, the image's file next to the case.
-- The initial state holds the answer's files, read before the first pick: their text up to a budget, their images and
-  their Word formatting.
+  that found it, its source, its text, the pages that hold its text, and, for a look at an image, the image's file next
+  to the case.
+- The initial state holds the answer's files, read before the first pick: their text up to a budget, their image files
+  and their Word formatting.
 - While the model gathers evidence, the question function asks one pick. Its choice function joins seven types of
   choice, six of them each in a file of its own in [`src/choices/`](src/choices): read a file or a part of it, look
-  at an image, search a term from the rubric, count the answer's words, list a document's tracked changes, and compare
-  the answer's Word file with the original. Each of these leaves out what the evidence already holds. The seventh is
-  stop, with the judge file's stop text, which is always among the choices.
+  at a page as an image, search a term from the rubric, count the answer's words, list a document's tracked changes,
+  and compare the answer's Word file with the original. Each of these leaves out what the evidence already holds. The
+  seventh is stop, with the judge file's stop text, which is always among the choices.
+- A look shows a page as an image, so that the model sees what the text leaves out, such as the layout, a chart, a
+  stamp or a signature. It is offered for image files, for pages without a text layer, such as scans, and for the
+  pages whose text the evidence already holds: the answer's first, then the documents' of the latest evidence. At most
+  six looks are offered in one state, and a run sees at most six images.
 - The transition function of a pick adds the evidence of the picked choice, or ends the gathering at stop, and counts
   the step. When the count reaches the most gathering steps that the judge file allows, it ends the gathering too.
 - Once the gathering has ended, or when nothing is left to gather but stop, the question function asks the judge's two

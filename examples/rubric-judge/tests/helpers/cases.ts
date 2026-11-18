@@ -8,7 +8,7 @@ export function file(
 	texts: string[],
 	extra: Partial<CaseFile> = {},
 ): CaseFile {
-	const units = texts.map((text, index) => ({ label: `page ${String(index + 1)}`, text }));
+	const units = texts.map((text, index) => ({ label: `page ${String(index + 1)}`, text, pages: [] }));
 	const words = units.reduce((sum, unit) => sum + unit.text.split(/\s+/).filter(Boolean).length, 0);
 	return {
 		id,
@@ -17,18 +17,46 @@ export function file(
 		format: "text",
 		units,
 		words,
-		renders: [],
+		pages: [],
 		formatting: null,
 		marks: 0,
 		error: null,
+		warnings: [],
 		...extra,
 	};
+}
+
+/** The image of a file's page, stored as `images/<file id>-<page>.png`. */
+export const pageImage = (file: CaseFile, page: number) => ({
+	label: `${file.path} page ${String(page)}`,
+	path: `images/${file.id}-${String(page)}.png`,
+	mimeType: "image/png",
+});
+
+/** A file laid out as pages, one page for each unit, each with its image; an empty unit is a page without text. */
+export function paged(base: CaseFile): CaseFile {
+	return {
+		...base,
+		units: base.units.map((unit, index) => ({ ...unit, pages: [index + 1] })),
+		pages: base.units.map((unit, index) => ({
+			number: index + 1,
+			image: pageImage(base, index + 1),
+			hasText: unit.text !== "",
+		})),
+	};
+}
+
+/** An image file, with its one image. */
+export function imageFile(id: string, path: string, role: CaseFile["role"]): CaseFile {
+	const base = file(id, path, role, [], { format: "image" });
+	const image = { label: path, path: `images/${id}-1.png`, mimeType: "image/png" };
+	return { ...base, pages: [{ number: 1, image, hasText: false }] };
 }
 
 /** A small case: a memo as the answer, a two-page lease and a contract as documents. */
 export function judgeCase(overrides: Partial<JudgeCase> = {}): JudgeCase {
 	return {
-		schema: 1,
+		schema: 2,
 		id: "case-1",
 		request: "Review the lease and write a memo.",
 		items: [
@@ -43,12 +71,14 @@ export function judgeCase(overrides: Partial<JudgeCase> = {}): JudgeCase {
 			file("a1", "output/memo.md", "answer", [
 				"# Memo\nThe notice period is 30 days under Section 4.2.\n## Advice\nSign it.",
 			]),
-			file(
-				"d1",
-				"documents/lease.pdf",
-				"document",
-				["Section 4.2 sets a notice period of 30 days.", "Rent is USD 2,500 a month."],
-				{ format: "pdf" },
+			paged(
+				file(
+					"d1",
+					"documents/lease.pdf",
+					"document",
+					["Section 4.2 sets a notice period of 30 days.", "Rent is USD 2,500 a month."],
+					{ format: "pdf" },
+				),
 			),
 			file("d2", "documents/contract.docx", "document", ["P1: The parties agree."], {
 				format: "docx",
@@ -57,6 +87,7 @@ export function judgeCase(overrides: Partial<JudgeCase> = {}): JudgeCase {
 				marks: 1,
 			}),
 		],
+		rendering: { pageSide: 1568, programs: { pdftoppm: "test" } },
 		...overrides,
 	};
 }

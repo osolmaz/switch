@@ -1,5 +1,5 @@
 import PostalMime, { type Address, type Mailbox } from "postal-mime";
-import type { Unit } from "../case.ts";
+import type { UnitText } from "../case.ts";
 import { htmlText, textUnits } from "./units.ts";
 
 const mailbox = (box: Mailbox): string => (box.name === "" ? box.address : `${box.name} <${box.address}>`);
@@ -10,7 +10,7 @@ const addresses = (value: readonly Address[] | Address | undefined): string =>
 	value === undefined ? "" : (isList(value) ? value : [value]).map(formatAddress).join(", ");
 
 /** An email's headers, its text (from HTML when it has no plain text) and the names of its attachments. */
-export async function readEmail(bytes: Uint8Array): Promise<Unit[]> {
+export async function readEmail(bytes: Uint8Array): Promise<UnitText[]> {
 	const email = await PostalMime.parse(bytes);
 	const headers = [
 		["From", addresses(email.from)],

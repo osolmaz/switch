@@ -5,7 +5,7 @@ import { type Answer, parseRequests, parseTrace, PICK_ID } from "@osolmaz/switch
 import { replayCase, resultSchema, RunMismatchError, runCases, runRecordSchema } from "@osolmaz/switch/cli";
 import { answering, failing, fakeDecider, type Policy } from "@osolmaz/switch/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_JUDGE } from "../src/index.ts";
+import { CODE_VERSION, DEFAULT_JUDGE } from "../src/index.ts";
 import { ingestCase } from "../src/ingest/ingest.ts";
 import { compareRuns, loadLabelledSet, scoreResults } from "../src/score/scores.ts";
 import { rubricJudgeDomain, rubricJudgeSetup } from "../src/setup.ts";
@@ -86,7 +86,7 @@ describe("the rubric-judge harness", () => {
 		const run = runRecordSchema.parse(JSON.parse(await readFile(join(folder, "out", "run.json"), "utf8")));
 		expect(run).toMatchObject({
 			domain: "rubric-judge",
-			version: "0.6.0",
+			version: CODE_VERSION,
 			definition: { name: "general", hash: rubricJudge.definition.hash, content: { domain: "rubric-judge" } },
 			model: "fake/decider",
 			limits: { windowShare: 0.9 },
