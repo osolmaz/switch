@@ -26,6 +26,11 @@ export const judgeSchema = z
 	.object({
 		name: z.string().min(1),
 		domain: z.literal("rubric-judge"),
+		/**
+		 * What one pass of gathering and checks covers: `rubric`, every item at once, or `item`, one item a pass, so that
+		 * no request about an item shows the others. Absent means `rubric`, which keeps the hash of a judge without it.
+		 */
+		scope: z.enum(["rubric", "item"]).exactOptional(),
 		limits: z
 			.object({
 				steps: z.number().int().positive(),

@@ -88,6 +88,11 @@ export interface JudgeState extends JsonObject {
 	readonly gathered: boolean;
 	/** The probability of yes of each check, by `<item id>/<question id>`; null until the model answered them. */
 	readonly checks: Readonly<Record<string, number>> | null;
+	/**
+	 * Under a judge of item scope, the number of the pass, which is the index of the rubric item it grades, and the
+	 * number of items once the last pass is over; absent under a judge of rubric scope.
+	 */
+	readonly pass?: number;
 }
 
 /** The state with one more piece of evidence. */

@@ -70,19 +70,25 @@ const checkTexts = ({ process, check, rules }: JudgeDefinition["texts"]): JsonOb
 	rules,
 });
 
+/** What a view is of: the judge's texts, the case folder, and the case with only the rubric items of the pass. */
+export interface ViewOf {
+	readonly texts: JudgeDefinition["texts"];
+	readonly folder: CaseFolder;
+	readonly focus: JudgeCase;
+}
+
 /**
- * What the model reads in a state: while it gathers, the rubric and the files as well; for the checks, the evidence
- * with the checking stage and the rules. The images that the evidence names are loaded from the case folder.
+ * What the model reads in a state: while it gathers, the pass's rubric items and the files as well; for the checks, the
+ * evidence with the checking stage and the rules. The images that the evidence names are loaded from the case folder.
  */
 export async function view(
-	texts: JudgeDefinition["texts"],
-	folder: CaseFolder,
+	{ texts, folder, focus }: ViewOf,
 	state: JudgeState,
 	checking: boolean,
 	tokens: number,
 	charsPerToken: number,
 ): Promise<View> {
-	const base = checking ? { request: folder.case.request } : pickJson(folder.case, state, texts);
+	const base = checking ? { request: focus.request } : pickJson(focus, state, texts);
 	const after = checking ? checkTexts(texts) : {};
 	const room = tokens - estimateTokens({ ...base, ...after }, charsPerToken);
 	const fitted = fitEvidence(state.evidence, room, charsPerToken);
