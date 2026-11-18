@@ -22,7 +22,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - name: Install the programs the rubric-judge example's ingestion uses
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils netpbm
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils netpbm
+          libreoffice-writer libreoffice-impress
       - run: pnpm install --frozen-lockfile
       - run: pnpm format
       - run: pnpm lint

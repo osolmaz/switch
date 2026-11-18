@@ -14,7 +14,11 @@ export function docxBytes(withComments = true): Uint8Array {
 		<w:p><w:r><w:t>  </w:t></w:r></w:p>
 		<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Party</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Role</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
 	</w:body>`;
-	const parts: Record<string, string> = { "word/document.xml": `<w:document ${W}>${body}</w:document>` };
+	const parts: Record<string, string> = {
+		"[Content_Types].xml": `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`,
+		"_rels/.rels": `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`,
+		"word/document.xml": `<w:document ${W}>${body}</w:document>`,
+	};
 	if (withComments)
 		parts["word/comments.xml"] =
 			`<w:comments ${W}><w:comment><w:p><w:r><w:t>Check this</w:t></w:r></w:p></w:comment></w:comments>`;

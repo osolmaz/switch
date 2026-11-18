@@ -1,10 +1,10 @@
-import type { Unit } from "../case.ts";
+import type { UnitText } from "../case.ts";
 
 /** Text as one unit, or as groups of `size` lines when it is longer. */
-export function textUnits(text: string, label = "lines", size = 60): Unit[] {
+export function textUnits(text: string, label = "lines", size = 60): UnitText[] {
 	const lines = text.split("\n");
 	if (lines.length <= size) return [{ label: "all", text }];
-	const units: Unit[] = [];
+	const units: UnitText[] = [];
 	for (let start = 0; start < lines.length; start += size) {
 		const end = Math.min(start + size, lines.length);
 		units.push({ label: `${label} ${String(start + 1)}-${String(end)}`, text: lines.slice(start, end).join("\n") });
@@ -12,7 +12,7 @@ export function textUnits(text: string, label = "lines", size = 60): Unit[] {
 	return units;
 }
 
-export const countWords = (units: readonly Unit[]): number =>
+export const countWords = (units: readonly UnitText[]): number =>
 	units.reduce((sum, unit) => sum + unit.text.split(/\s+/).filter(Boolean).length, 0);
 
 /** Visible text of an HTML page: scripts and styles dropped, block ends as line breaks, entities decoded. */

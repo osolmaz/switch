@@ -22,7 +22,7 @@ import { searchTerms } from "./terms.ts";
 import { view } from "./view.ts";
 
 /** The version of this domain's code. A run records the judge apart, as its definition with its hash. */
-export const CODE_VERSION = "0.6.0";
+export const CODE_VERSION = "0.7.0";
 
 /**
  * What every case shares under a judge: the domain's name and version, and the share of the window that a request may

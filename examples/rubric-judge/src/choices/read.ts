@@ -5,9 +5,9 @@ import {
 	SIZES,
 	type JudgeState,
 	type Part,
+	partEvidence,
 	partKey,
 	partSource,
-	partText,
 	partWords,
 	readable,
 	readParts,
@@ -50,5 +50,5 @@ export const read = (judgeCase: JudgeCase) =>
 				.filter(readable)
 				.flatMap((file) => fileChoices(file, done.get(file.id) ?? new Set(), room));
 		},
-		transition: (state, part, key) => withEvidence(state, { key, source: partSource(part), text: partText(part) }),
+		transition: (state, part, key) => withEvidence(state, partEvidence(part, key)),
 	});

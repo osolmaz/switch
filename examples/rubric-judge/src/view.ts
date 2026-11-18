@@ -21,6 +21,7 @@ function pickJson(judgeCase: JudgeCase, state: JudgeState, texts: JudgeDefinitio
 			role: file.role,
 			format: file.format,
 			words: file.words,
+			pages: file.pages.length,
 			read: readStatus(file, read.get(file.id)),
 		})),
 		steps_taken: state.evidence.map((entry) => entry.source),
