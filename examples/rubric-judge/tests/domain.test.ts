@@ -14,7 +14,7 @@ import {
 } from "../src/index.ts";
 import { combine, verdictsFrom } from "../src/judge.ts";
 import { openAnswer } from "../src/start.ts";
-import { SIZES } from "../src/state.ts";
+import { type JudgeState, SIZES } from "../src/state.ts";
 import { searchTerms, termsIn } from "../src/terms.ts";
 import { fitEvidence, view } from "../src/view.ts";
 import { evidence, file, folderOf, imageFile, judgeCase, paged, stateOf } from "./helpers/cases.ts";
@@ -97,7 +97,8 @@ describe("view", () => {
 	it("shows the rubric, the files and the steps while gathering, and the evidence with the rules for the checks", async () => {
 		const folder = folderOf(judgeCase());
 		const state = stateOf({ ...evidence("read:d1:0-0", "Section 4.2"), source: "documents/lease.pdf, page 1" });
-		const picking = await view(texts, folder, state, false, 50_000, 3);
+		const of = { texts, folder, focus: folder.case };
+		const picking = await view(of, state, false, 50_000, 3);
 		expect(Object.keys(picking.decisionState)).toEqual([
 			"process",
 			"stage",
@@ -115,7 +116,7 @@ describe("view", () => {
 		expect(picking.decisionState["evidence"]).toEqual([
 			{ source: "documents/lease.pdf, page 1", text: "Section 4.2" },
 		]);
-		const checking = await view(texts, folder, state, true, 50_000, 3);
+		const checking = await view(of, state, true, 50_000, 3);
 		expect(Object.keys(checking.decisionState)).toEqual(["request", "evidence", "process", "stage", "rules"]);
 		expect(checking.decisionState).toMatchObject({ stage: texts.check, rules: texts.rules });
 	});
@@ -123,11 +124,12 @@ describe("view", () => {
 	it("loads the images that the evidence names from the case folder", async () => {
 		const render = { label: "page 1 image", path: "images/d1-1.png", mimeType: "image/png" };
 		const state = stateOf(evidence("read:a1:0-0"), evidence("look:d1:0", "[image]", { image: render }));
-		const seen = await view(texts, folderOf(judgeCase()), state, true, 50_000, 3);
+		const of = { texts, folder: folderOf(judgeCase()), focus: judgeCase() };
+		const seen = await view(of, state, true, 50_000, 3);
 		expect(seen.decisionImages).toEqual([
 			{ type: "image", label: "page 1 image", mimeType: "image/png", data: "data:images/d1-1.png" },
 		]);
-		const textOnly = await view(texts, folderOf(judgeCase()), stateOf(evidence("read:a1:0-0")), true, 50_000, 3);
+		const textOnly = await view(of, stateOf(evidence("read:a1:0-0")), true, 50_000, 3);
 		expect(textOnly).not.toHaveProperty("decisionImages");
 	});
 
@@ -221,6 +223,53 @@ describe("rubricJudge", () => {
 		]);
 		const unjudged = judgeMachine(judge.definition, folderOf(judgeCase()));
 		expect(judgeOutcome(judge.definition)({ state: await unjudged.initial() })).toEqual({ verdicts: null });
+	});
+});
+
+describe("item scope", () => {
+	const byItem = { ...judge.definition, scope: "item" as const };
+	const rubricOf = (request: { decisionState: Record<string, unknown> }) =>
+		(request.decisionState["rubric"] as { id: string }[] | undefined)?.map((item) => item.id);
+
+	it("grades one item a pass, each from the answer opened afresh, and never shows another item", async () => {
+		const decider = fakeDecider(answering(0.2, (labels) => labels[0] ?? "o1"));
+		const result = await run(rubricJudge(judge), judgeMachine(byItem, folderOf(judgeCase())), decider);
+		expect(result.ended).toBe("done");
+		const asked = decider.requests.map((request) => ({
+			rubric: rubricOf(request),
+			questions: Object.keys(request.decisionQuestions),
+		}));
+		const first = asked.findIndex(({ questions }) => questions.includes("S-001/meets"));
+		expect(asked[first]?.questions).toEqual(["S-001/meets", "S-001/misses"]);
+		expect(asked.slice(0, first).map(({ rubric }) => rubric)).toEqual(asked.slice(0, first).map(() => ["S-001"]));
+		const second = asked.slice(first + 1, -1);
+		expect(second.map(({ rubric }) => rubric)).toEqual(second.map(() => ["F-001"]));
+		expect(asked.at(-1)?.questions).toEqual(["F-001/meets", "F-001/misses"]);
+		expect(result.state).toMatchObject({ pass: 2 });
+		expect(Object.keys(result.state.checks ?? {})).toEqual([
+			"S-001/meets",
+			"S-001/misses",
+			"F-001/meets",
+			"F-001/misses",
+		]);
+		// The second pass starts again from the answer alone, without the first pass's evidence.
+		const states = result.trace.entries.flatMap((entry) =>
+			entry.type === "state" ? [entry.state as unknown as JudgeState] : [],
+		);
+		const secondStart = states.find((state) => state.pass === 1);
+		expect(secondStart?.evidence.map((entry) => entry.key)).toEqual(["read:a1:0-0"]);
+		expect(judgeOutcome(byItem)(result)).toEqual({
+			verdicts: { "S-001": expect.closeTo(0.2) as unknown, "F-001": expect.closeTo(0.2) as unknown },
+		});
+	});
+
+	it("keeps the hash of a judge without a scope, and asks nothing once the last pass is over", async () => {
+		expect(judgeOf({ ...judge.definition }).hash).toBe(judge.hash);
+		expect(judgeOf(byItem).hash).not.toBe(judge.hash);
+		expect(() => judgeOf({ ...judge.definition, scope: "page" })).toThrow();
+		const machine = judgeMachine(byItem, folderOf(judgeCase()));
+		expect(await machine.initial()).toMatchObject({ pass: 0, checks: null });
+		expect(machine.questions({ ...stateOf(), checks: { "F-001/meets": 1 }, pass: 2 })).toEqual({});
 	});
 });
 

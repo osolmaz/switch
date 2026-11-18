@@ -7,7 +7,7 @@ contradicts any requirement. An item passes when both checks pass.
 
 The texts that tell the model what the task is and how to judge it are in a judge file, with the questions and the
 limits. The judge file is this domain's definition, so a variant of the judge is another file passed with `--judge`.
-The texts of the steps, such as each choice's text, are in the code, and come with the domain's version. Three judge
+The texts of the steps, such as each choice's text, are in the code, and come with the domain's version. Four judge
 files come with the example:
 
 - [`judges/general.json`](judges/general.json), the default, names no field of work.
@@ -15,6 +15,15 @@ files come with the example:
   this example had when it graded legal tasks only, so its scores compare with that judge's.
 - [`judges/legal-qualifiers.json`](judges/legal-qualifiers.json) adds a rule on the conditions that most legal rubric
   items turn on, such as "despite" or "unless".
+- [`judges/legal-by-item.json`](judges/legal-by-item.json) is the legal judge of item scope.
+
+A judge file's `scope` says what one pass of gathering and checks covers. With `rubric`, or no `scope`, one pass
+gathers evidence for every rubric item and then checks them all in one request. With `item`, the run makes one pass for
+each item in turn: each pass starts from the answer opened afresh, shows the model only its own item while it gathers,
+searches only that item's terms, and asks only that item's two questions. No request about an item then shows another
+item, so no verdict can depend on the other items or their order. It takes about as many requests as there are items
+times the gathering steps of a pass, so a lower `steps` limit keeps it cheaper. The outcome, the scores and the labels
+are the same in both scopes. A fork from a state of one scope under a judge of the other is not supported.
 
 All labelled cases so far are legal tasks, so a score of the general judge says how it does on legal tasks only.
 
