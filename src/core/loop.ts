@@ -253,7 +253,7 @@ async function askModel<S extends JsonObject>(loop: Loop<S>, state: S, questions
 	const sent = Object.fromEntries(Object.entries(questions).map(([id, question]) => [id, sendable(question)]));
 	const answers: Record<string, Answer> = {};
 	for (const batch of batches(sent, room, decider.charsPerToken)) {
-		const result = await ask(loop, state, batch);
+		const result = await askSplitting(loop, state, batch);
 		if (result.stopReason !== "stop") return failureOf(result);
 		Object.assign(answers, result.decisionAnswers);
 	}
@@ -330,6 +330,31 @@ async function ask<S extends JsonObject>(loop: Loop<S>, state: S, questions: Que
 		room = Math.floor(room * SHRINK);
 		trace.note(`the request did not fit the model's window; trying a view of ${String(room)} tokens`);
 	}
+}
+
+/**
+ * Sends one batch of questions as `ask` does. When the request is still too long after its smaller views, and the
+ * batch has more than one question, it asks each half of the batch on its own, and so on down to single questions:
+ * a model may count what the questions cost, such as each answer of a choice, beyond their estimated size.
+ */
+async function askSplitting<S extends JsonObject>(
+	loop: Loop<S>,
+	state: S,
+	questions: Questions,
+): Promise<DecisionResult> {
+	const result = await ask(loop, state, questions);
+	const entries = Object.entries(questions);
+	if (!result.tooLong || entries.length < 2) return result;
+	loop.trace.note(
+		`the request did not fit the model's window; asking its ${String(entries.length)} questions in two halves`,
+	);
+	const half = Math.ceil(entries.length / 2);
+	const part = (from: number, to?: number): Questions => Object.fromEntries(entries.slice(from, to));
+	const first = await askSplitting(loop, state, part(0, half));
+	if (first.stopReason !== "stop") return first;
+	const second = await askSplitting(loop, state, part(half));
+	if (second.stopReason !== "stop") return second;
+	return { ...second, decisionAnswers: { ...first.decisionAnswers, ...second.decisionAnswers } };
 }
 
 /** The estimated size of `value` as JSON, in tokens of `charsPerToken` characters. */
