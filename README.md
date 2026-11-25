@@ -93,6 +93,8 @@ pnpm install
 ## Examples
 
 - [Rubric judge](examples/rubric-judge/README.md) grades a saved answer to a task against the task's rubric.
+- [Duplicates](examples/duplicates/README.md) finds the items of a list that check the same thing, in n questions and not
+  one per pair.
 - [Chess](examples/chess/README.md) plays chess against random moves, Stockfish, or itself.
 - [WikiRace](examples/wikirace/README.md) races from one Wikipedia article to another by following links.
 

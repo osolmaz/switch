@@ -39,6 +39,9 @@ jobs:
       - name: Check the chess example
         working-directory: examples/chess
         run: pnpm format && pnpm lint && pnpm typecheck && pnpm test && pnpm coverage && pnpm dry
+      - name: Check the duplicates example
+        working-directory: examples/duplicates
+        run: pnpm format && pnpm lint && pnpm typecheck && pnpm test && pnpm coverage && pnpm dry
       - name: Check the rubric-judge example
         working-directory: examples/rubric-judge
         run: pnpm format && pnpm lint && pnpm typecheck && pnpm test && pnpm coverage && pnpm dry

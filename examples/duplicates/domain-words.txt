@@ -1,0 +1,8 @@
+# Words of the duplicates domain, which switch and the viewer must not use. switch's word test reads this file.
+duplicate
+dedupe
+overlap
+candidate
+covers
+requirement
+redundant
