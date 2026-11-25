@@ -281,6 +281,32 @@ describe("many questions", () => {
 		expect(batched.map((request) => Object.keys(request.decisionQuestions))).toEqual([["a", "b"], ["c"]]);
 		expect(result.state.answers).toEqual({ a: 0.5, b: 0.5, c: 0.5 });
 	});
+
+	it("of a batch that is still too long are asked in halves, down to single questions, and their answers joined", async () => {
+		// The model refuses any request with more than one of the step's questions, whatever its view.
+		const decider = fakeDecider((request, call) =>
+			Object.keys(request.decisionQuestions).length > 1
+				? failing("max_tokens_exceeded", true)
+				: answering(0.5)(request, call),
+		);
+		const result = await run(FACTS, factsMachine(three), decider);
+		expect(result.ended).toBe("done");
+		expect(result.state.answers).toEqual({ a: 0.5, b: 0.5, c: 0.5 });
+		const halves = notesOf(result.trace).filter((note) => note.endsWith("in two halves"));
+		expect(halves).toEqual([
+			"the request did not fit the model's window; asking its 3 questions in two halves",
+			"the request did not fit the model's window; asking its 2 questions in two halves",
+		]);
+		// A failure of either half stops the step, as any failed batch does.
+		for (const down of ["a", "c"]) {
+			const halfFails = fakeDecider((request, call) => {
+				const ids = Object.keys(request.decisionQuestions);
+				if (ids.length > 1) return failing("max_tokens_exceeded", true);
+				return ids[0] === down ? failing("down") : answering(0.5)(request, call);
+			});
+			expect(await run(FACTS, factsMachine(three), halfFails)).toMatchObject({ ended: "failed", error: "down" });
+		}
+	});
 });
 
 describe("a pick", () => {

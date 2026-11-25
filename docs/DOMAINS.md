@@ -30,7 +30,10 @@ the same key that the choice function leaves out.
 
 Without a view function, the model reads the state as it is. A view function gets the most tokens that its view may
 take and the decider's characters per token, so it can measure with `estimateTokens`. When the model says that a
-request was still too long, switch asks the view function for a smaller view.
+request was still too long, switch asks the view function for a smaller view. When the request is still too long after
+the smaller views and holds more than one question, switch asks each half of its questions on its own, down to
+single questions, since a model may count more for a question than its estimated size, such as each answer of a
+choice.
 
 The limits are `windowShare`, the share of the model's window that a request may fill, and `steps`, the most steps of a
 run. `steps` is a safety net against a run that never ends, and it is off unless the domain sets it. A domain that
