@@ -54,6 +54,9 @@ typescript:
     - from: examples/chess
       allow:
         - examples/chess
+    - from: examples/duplicates
+      allow:
+        - examples/duplicates
     - from: examples/rubric-judge
       allow:
         - examples/rubric-judge
